@@ -3,6 +3,11 @@ import os
 import asyncio
 from flask import Flask
 from threading import Thread
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -24,31 +29,52 @@ api_hash = os.environ['API_HASH']
 source_group = os.environ['SOURCE_GROUP']
 dest_group = os.environ['DEST_GROUP']
 
-# Use the session file we created locally
-client = TelegramClient('test_session', api_id, api_hash)
+client = TelegramClient('koyeb_session', api_id, api_hash)
+
+async def check_environment():
+    """Check if we have everything needed"""
+    logger.info("🔧 Checking environment...")
+    
+    try:
+        # Test if we can access the groups
+        source_entity = await client.get_entity(source_group)
+        logger.info(f"✅ Source group: {source_entity.title}")
+        
+        dest_entity = await client.get_entity(dest_group)
+        logger.info(f"✅ Destination group: {dest_entity.title}")
+        
+        return True
+    except Exception as e:
+        logger.error(f"❌ Environment check failed: {e}")
+        logger.info("💡 Run the authentication script in Koyeb console first!")
+        return False
 
 @client.on(events.NewMessage(chats=source_group))
 async def handler(event):
-    print(f"📨 Message received")
+    logger.info("📨 Message received")
     try:
         await event.forward_to(dest_group)
-        print("✅ Message forwarded!")
+        logger.info("✅ Message forwarded!")
     except Exception as e:
-        print(f"❌ Forward error: {e}")
+        logger.error(f"❌ Forward error: {e}")
 
 async def telegram_main():
-    # On server, it will use the existing session file
     await client.start()
-    print("🤖 Telegram bot connected!")
-    await client.run_until_disconnected()
+    logger.info("🤖 Telegram bot connected!")
+    
+    if await check_environment():
+        logger.info("🎯 Starting to listen for messages...")
+        await client.run_until_disconnected()
+    else:
+        logger.error("🚫 Cannot start - environment check failed")
 
 def start_bot():
     asyncio.run(telegram_main())
 
 if __name__ == '__main__':
-    print("🚀 Starting bot...")
+    logger.info("🚀 Starting bot...")
     
-    # Start web server
+    # Start web server for health checks
     web_thread = Thread(target=run_web_server, daemon=True)
     web_thread.start()
     
