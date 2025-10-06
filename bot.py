@@ -24,11 +24,12 @@ api_hash = os.environ['API_HASH']
 source_group = os.environ['SOURCE_GROUP']
 dest_group = os.environ['DEST_GROUP']
 
-client = TelegramClient('session', api_id, api_hash)
+# Use the session file we created locally
+client = TelegramClient('test_session', api_id, api_hash)
 
 @client.on(events.NewMessage(chats=source_group))
 async def handler(event):
-    print(f"📨 Message received from {source_group}")
+    print(f"📨 Message received")
     try:
         await event.forward_to(dest_group)
         print("✅ Message forwarded!")
@@ -36,10 +37,9 @@ async def handler(event):
         print(f"❌ Forward error: {e}")
 
 async def telegram_main():
+    # On server, it will use the existing session file
     await client.start()
     print("🤖 Telegram bot connected!")
-    print(f"👂 Listening to: {source_group}")
-    print(f"📤 Forwarding to: {dest_group}")
     await client.run_until_disconnected()
 
 def start_bot():
@@ -47,8 +47,6 @@ def start_bot():
 
 if __name__ == '__main__':
     print("🚀 Starting bot...")
-    print(f"Source: {source_group}")
-    print(f"Destination: {dest_group}")
     
     # Start web server
     web_thread = Thread(target=run_web_server, daemon=True)
