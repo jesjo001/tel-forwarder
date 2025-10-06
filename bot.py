@@ -1,15 +1,12 @@
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 import os
 import asyncio
 from flask import Flask
 from threading import Thread
 import logging
 
-# Setup detailed logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -24,69 +21,51 @@ def health():
 
 def run_web_server():
     port = int(os.environ.get('PORT', 8000))
-    logger.info(f"🌐 Web server starting on port {port}")
     app.run(host='0.0.0.0', port=port)
 
 # Get environment variables
 api_id = int(os.environ['API_ID'])
 api_hash = os.environ['API_HASH']
+session_string = os.environ['SESSION_STRING']  # NEW
 source_group = os.environ['SOURCE_GROUP']
 dest_group = os.environ['DEST_GROUP']
 
-logger.info(f"🔧 Config - Source: {source_group}, Dest: {dest_group}")
-
-client = TelegramClient('koyeb_session', api_id, api_hash)
-
-async def verify_groups():
-    """Verify we can access both groups"""
-    try:
-        logger.info("🔍 Verifying group access...")
-        
-        source_entity = await client.get_entity(source_group)
-        logger.info(f"✅ Source group: {source_entity.title} (ID: {source_entity.id})")
-        
-        dest_entity = await client.get_entity(dest_group)
-        logger.info(f"✅ Destination group: {dest_entity.title} (ID: {dest_entity.id})")
-        
-        return True
-    except Exception as e:
-        logger.error(f"❌ Group verification failed: {e}")
-        return False
+# Use string session instead of file session
+client = TelegramClient(StringSession(session_string), api_id, api_hash)
 
 @client.on(events.NewMessage(chats=source_group))
 async def handler(event):
-    logger.info(f"📨 MESSAGE RECEIVED!")
-    logger.info(f"   From: {event.sender_id}")
-    logger.info(f"   Text: {event.text}")
-    logger.info(f"   Chat ID: {event.chat_id}")
-    
+    logger.info(f"📨 Message received: {event.text[:100]}...")
     try:
         await event.forward_to(dest_group)
-        logger.info("✅ SUCCESS: Message forwarded!")
+        logger.info("✅ Message forwarded!")
     except Exception as e:
-        logger.error(f"❌ Forward failed: {e}")
+        logger.error(f"❌ Forward error: {e}")
 
 async def telegram_main():
     await client.start()
-    logger.info("🤖 Telegram client started!")
+    logger.info("🤖 Telegram bot connected!")
     
-    me = await client.get_me()
-    logger.info(f"🔑 Logged in as: {me.first_name} (ID: {me.id})")
+    # Verify groups
+    try:
+        source_entity = await client.get_entity(source_group)
+        dest_entity = await client.get_entity(dest_group)
+        logger.info(f"✅ Source: {source_entity.title}")
+        logger.info(f"✅ Destination: {dest_entity.title}")
+    except Exception as e:
+        logger.error(f"❌ Group access failed: {e}")
+        return
     
-    if await verify_groups():
-        logger.info("🎯 Starting to listen for messages...")
-        logger.info("💡 Send a test message to your source group now!")
-        await client.run_until_disconnected()
-    else:
-        logger.error("🚫 Cannot start listening - group access failed")
+    logger.info("🎯 Listening for messages...")
+    await client.run_until_disconnected()
 
 def start_bot():
     asyncio.run(telegram_main())
 
 if __name__ == '__main__':
-    logger.info("🚀 Starting Telegram forwarder bot...")
+    logger.info("🚀 Starting bot with string session...")
     
-    # Start web server for health checks
+    # Start web server
     web_thread = Thread(target=run_web_server, daemon=True)
     web_thread.start()
     
