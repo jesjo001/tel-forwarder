@@ -40,8 +40,12 @@ dest_group = os.environ['DEST_GROUP']
 logger.info(f"🔧 Config loaded: Source={source_group}, Dest={dest_group}")
 
 # Initialize Telegram client
-client = TelegramClient('render_session', api_id, api_hash)
-
+session_string = os.environ.get('SESSION_STRING')
+if session_string:
+    client = TelegramClient(StringSession(session_string), api_id, api_hash)
+else:
+    client = TelegramClient('render_session', api_id, api_hash)
+    
 async def verify_environment():
     """Verify we can access everything needed"""
     try:
