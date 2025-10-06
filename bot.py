@@ -1,28 +1,56 @@
 from telethon import TelegramClient, events
 import os
 import asyncio
+from flask import Flask
+from threading import Thread
+import requests
 
-# Get credentials from environment
-api_id = int(os.getenv('API_ID'))
-api_hash = os.getenv('API_HASH')
-source_group = os.getenv('SOURCE_GROUP')
-dest_group = os.getenv('DEST_GROUP')
+# Create Flask app for health checks
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "🤖 Telegram Bot is Running!"
+
+@app.route('/health')
+def health():
+    return "OK", 200
+
+def run_web_server():
+    port = int(os.environ.get('PORT', 8000))
+    app.run(host='0.0.0.0', port=port)
+
+# Telegram Bot Code
+api_id = int(os.environ['API_ID'])
+api_hash = os.environ['API_HASH']
+source_group = os.environ['SOURCE_GROUP']
+dest_group = os.environ['DEST_GROUP']
 
 client = TelegramClient('session', api_id, api_hash)
 
 @client.on(events.NewMessage(chats=source_group))
-async def message_handler(event):
-    print(f"📨 Received: {event.text}")
-    
-    # Your simple forwarding logic
-    if "important" in event.text.lower():
+async def handler(event):
+    print(f"📨 Message received: {event.text[:50]}...")
+    try:
         await event.forward_to(dest_group)
-        print("✅ Forwarded important message!")
+        print("✅ Message forwarded!")
+    except Exception as e:
+        print(f"❌ Forward error: {e}")
 
-async def main():
+async def telegram_main():
     await client.start()
-    print("🤖 Bot is running forever!")
+    print("🤖 Telegram bot connected!")
     await client.run_until_disconnected()
 
+def start_bot():
+    asyncio.run(telegram_main())
+
 if __name__ == '__main__':
-    asyncio.run(main())
+    print("🚀 Starting bot with web server...")
+    
+    # Start web server in background thread
+    web_thread = Thread(target=run_web_server, daemon=True)
+    web_thread.start()
+    
+    # Start Telegram bot
+    start_bot()
