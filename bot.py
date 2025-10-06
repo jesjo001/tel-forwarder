@@ -3,9 +3,7 @@ import os
 import asyncio
 from flask import Flask
 from threading import Thread
-# import requests
 
-# Create Flask app for health checks
 app = Flask(__name__)
 
 @app.route('/')
@@ -20,7 +18,7 @@ def run_web_server():
     port = int(os.environ.get('PORT', 8000))
     app.run(host='0.0.0.0', port=port)
 
-# Telegram Bot Code
+# Get environment variables
 api_id = int(os.environ['API_ID'])
 api_hash = os.environ['API_HASH']
 source_group = os.environ['SOURCE_GROUP']
@@ -30,7 +28,7 @@ client = TelegramClient('session', api_id, api_hash)
 
 @client.on(events.NewMessage(chats=source_group))
 async def handler(event):
-    print(f"📨 Message received: {event.text[:50]}...")
+    print(f"📨 Message received from {source_group}")
     try:
         await event.forward_to(dest_group)
         print("✅ Message forwarded!")
@@ -40,15 +38,19 @@ async def handler(event):
 async def telegram_main():
     await client.start()
     print("🤖 Telegram bot connected!")
+    print(f"👂 Listening to: {source_group}")
+    print(f"📤 Forwarding to: {dest_group}")
     await client.run_until_disconnected()
 
 def start_bot():
     asyncio.run(telegram_main())
 
 if __name__ == '__main__':
-    print("🚀 Starting bot with web server...")
+    print("🚀 Starting bot...")
+    print(f"Source: {source_group}")
+    print(f"Destination: {dest_group}")
     
-    # Start web server in background thread
+    # Start web server
     web_thread = Thread(target=run_web_server, daemon=True)
     web_thread.start()
     
