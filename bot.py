@@ -3,7 +3,7 @@ import os
 import asyncio
 from flask import Flask
 from threading import Thread
-import requests
+# import requests
 
 # Create Flask app for health checks
 app = Flask(__name__)
