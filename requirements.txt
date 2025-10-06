@@ -1,2 +1,2 @@
 telethon
-flask==2.3.3
+flask
