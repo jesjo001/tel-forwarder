@@ -3,11 +3,7 @@ import os
 import asyncio
 from flask import Flask
 from threading import Thread
-import logging
-
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+import time
 
 app = Flask(__name__)
 
@@ -31,50 +27,50 @@ dest_group = os.environ['DEST_GROUP']
 
 client = TelegramClient('koyeb_session', api_id, api_hash)
 
-async def check_environment():
-    """Check if we have everything needed"""
-    logger.info("🔧 Checking environment...")
-    
-    try:
-        # Test if we can access the groups
-        source_entity = await client.get_entity(source_group)
-        logger.info(f"✅ Source group: {source_entity.title}")
-        
-        dest_entity = await client.get_entity(dest_group)
-        logger.info(f"✅ Destination group: {dest_entity.title}")
-        
-        return True
-    except Exception as e:
-        logger.error(f"❌ Environment check failed: {e}")
-        logger.info("💡 Run the authentication script in Koyeb console first!")
-        return False
-
 @client.on(events.NewMessage(chats=source_group))
 async def handler(event):
-    logger.info("📨 Message received")
+    print(f"📨 Message received")
     try:
         await event.forward_to(dest_group)
-        logger.info("✅ Message forwarded!")
+        print("✅ Message forwarded!")
     except Exception as e:
-        logger.error(f"❌ Forward error: {e}")
+        print(f"❌ Forward error: {e}")
+
+async def connect_with_retry():
+    max_retries = 5
+    retry_delay = 10  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            print(f"🔄 Connection attempt {attempt + 1}/{max_retries}...")
+            await client.start()
+            print("✅ Connected to Telegram!")
+            return True
+        except Exception as e:
+            print(f"❌ Connection failed: {e}")
+            if attempt < max_retries - 1:
+                print(f"⏳ Retrying in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+            else:
+                print("🚫 All connection attempts failed")
+                return False
 
 async def telegram_main():
-    await client.start()
-    logger.info("🤖 Telegram bot connected!")
-    
-    if await check_environment():
-        logger.info("🎯 Starting to listen for messages...")
+    if await connect_with_retry():
+        print("🤖 Telegram bot connected!")
+        print(f"👂 Listening to: {source_group}")
+        print(f"📤 Forwarding to: {dest_group}")
         await client.run_until_disconnected()
     else:
-        logger.error("🚫 Cannot start - environment check failed")
+        print("💡 Tips: Try a different hosting provider or check if Telegram is blocking this IP")
 
 def start_bot():
     asyncio.run(telegram_main())
 
 if __name__ == '__main__':
-    logger.info("🚀 Starting bot...")
+    print("🚀 Starting bot...")
     
-    # Start web server for health checks
+    # Start web server
     web_thread = Thread(target=run_web_server, daemon=True)
     web_thread.start()
     
