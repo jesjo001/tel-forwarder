@@ -3,7 +3,14 @@ import os
 import asyncio
 from flask import Flask
 from threading import Thread
-import time
+import logging
+
+# Setup detailed logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -17,6 +24,7 @@ def health():
 
 def run_web_server():
     port = int(os.environ.get('PORT', 8000))
+    logger.info(f"🌐 Web server starting on port {port}")
     app.run(host='0.0.0.0', port=port)
 
 # Get environment variables
@@ -25,52 +33,60 @@ api_hash = os.environ['API_HASH']
 source_group = os.environ['SOURCE_GROUP']
 dest_group = os.environ['DEST_GROUP']
 
+logger.info(f"🔧 Config - Source: {source_group}, Dest: {dest_group}")
+
 client = TelegramClient('koyeb_session', api_id, api_hash)
+
+async def verify_groups():
+    """Verify we can access both groups"""
+    try:
+        logger.info("🔍 Verifying group access...")
+        
+        source_entity = await client.get_entity(source_group)
+        logger.info(f"✅ Source group: {source_entity.title} (ID: {source_entity.id})")
+        
+        dest_entity = await client.get_entity(dest_group)
+        logger.info(f"✅ Destination group: {dest_entity.title} (ID: {dest_entity.id})")
+        
+        return True
+    except Exception as e:
+        logger.error(f"❌ Group verification failed: {e}")
+        return False
 
 @client.on(events.NewMessage(chats=source_group))
 async def handler(event):
-    print(f"📨 Message received")
+    logger.info(f"📨 MESSAGE RECEIVED!")
+    logger.info(f"   From: {event.sender_id}")
+    logger.info(f"   Text: {event.text}")
+    logger.info(f"   Chat ID: {event.chat_id}")
+    
     try:
         await event.forward_to(dest_group)
-        print("✅ Message forwarded!")
+        logger.info("✅ SUCCESS: Message forwarded!")
     except Exception as e:
-        print(f"❌ Forward error: {e}")
-
-async def connect_with_retry():
-    max_retries = 5
-    retry_delay = 10  # seconds
-    
-    for attempt in range(max_retries):
-        try:
-            print(f"🔄 Connection attempt {attempt + 1}/{max_retries}...")
-            await client.start()
-            print("✅ Connected to Telegram!")
-            return True
-        except Exception as e:
-            print(f"❌ Connection failed: {e}")
-            if attempt < max_retries - 1:
-                print(f"⏳ Retrying in {retry_delay} seconds...")
-                await asyncio.sleep(retry_delay)
-            else:
-                print("🚫 All connection attempts failed")
-                return False
+        logger.error(f"❌ Forward failed: {e}")
 
 async def telegram_main():
-    if await connect_with_retry():
-        print("🤖 Telegram bot connected!")
-        print(f"👂 Listening to: {source_group}")
-        print(f"📤 Forwarding to: {dest_group}")
+    await client.start()
+    logger.info("🤖 Telegram client started!")
+    
+    me = await client.get_me()
+    logger.info(f"🔑 Logged in as: {me.first_name} (ID: {me.id})")
+    
+    if await verify_groups():
+        logger.info("🎯 Starting to listen for messages...")
+        logger.info("💡 Send a test message to your source group now!")
         await client.run_until_disconnected()
     else:
-        print("💡 Tips: Try a different hosting provider or check if Telegram is blocking this IP")
+        logger.error("🚫 Cannot start listening - group access failed")
 
 def start_bot():
     asyncio.run(telegram_main())
 
 if __name__ == '__main__':
-    print("🚀 Starting bot...")
+    logger.info("🚀 Starting Telegram forwarder bot...")
     
-    # Start web server
+    # Start web server for health checks
     web_thread = Thread(target=run_web_server, daemon=True)
     web_thread.start()
     
